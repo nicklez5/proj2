@@ -38,8 +38,14 @@ void initialize_render(driver_state& state, int width, int height)
 void render(driver_state& state, render_type type)
 {
  
-    state.geometry_array = new data_geometry[state.num_vertices];
-    state.vertex_array = new data_vertex[state.num_vertices];
+    state.geometry_array = new data_geometry*[state.num_vertices];
+    state.vertex_array = new data_vertex*[state.num_vertices];
+    for(int i = 0; i < state.num_vertices; i++){
+	state.geometry_array[i] = new data_geometry;
+	state.vertex_array[i] = new data_vertex;
+	state.vertex_array[i]->data = new float[state.floats_per_vertex];
+	state.geometry_array[i]->data = new float[state.floats_per_vertex];
+    }
     int a = 0;
     for(int i = 0 ; i < state.num_vertices; i++){
 	float *data_sub = new float[state.floats_per_vertex];
@@ -48,19 +54,19 @@ void render(driver_state& state, render_type type)
 		//std::cout << "Print vertex_data: " << state.vertex_data[a] << std::endl;
 		a++;
 	}
-	state.vertex_array[i].data = data_sub;	
-	state.vertex_shader(state.vertex_array[i] ,state.geometry_array[i], state.uniform_data);
-        //std::cout << "Geometry vertex_data: " << state.geometry_array[i].gl_Position << std::endl;	
+	state.vertex_array[i]->data = data_sub;	
+	state.vertex_shader((const data_vertex)*state.vertex_array[i] ,*state.geometry_array[i], state.uniform_data);
+        //std::cout << "Geometry vertex_data: " << state.geometry_array[i]->data << std::endl;	
     }
     switch(type){
 	    case render_type::triangle:
 		    for(int xyz = 0 ; xyz < state.num_vertices; xyz++){
-			data_geometry first_triangle = state.geometry_array[xyz];
+			data_geometry *first_triangle = state.geometry_array[xyz];
 			xyz++;
-			data_geometry second_triangle = state.geometry_array[xyz];
+			data_geometry *second_triangle = state.geometry_array[xyz];
 			xyz++;
-			data_geometry third_triangle = state.geometry_array[xyz];
-			rasterize_triangle(state,first_triangle, second_triangle , third_triangle);
+			data_geometry *third_triangle = state.geometry_array[xyz];
+			rasterize_triangle(state,(const data_geometry) *first_triangle,(const data_geometry) *second_triangle ,(const data_geometry) *third_triangle);
 				
 		    }
 		    break;
@@ -100,13 +106,13 @@ void clip_triangle(driver_state& state, const data_geometry& v0,
 void rasterize_triangle(driver_state& state, const data_geometry& v0,
     const data_geometry& v1, const data_geometry& v2)
 {
-    
-    //std::cout << "Data geometry1 data: " << v0.gl_Position << std::endl;
-    //std::cout << "Data geometry2 data: " << v1.gl_Position << std::endl;
-    //std::cout << "Data geometry3 data: " << v2.gl_Position << std::endl;
+    //std::cout << "Data geometry1 data: " << v0.data << std::endl;
+    //std::cout << "Data geometry2 data: " << v1.data << std::endl;
+    //std::cout << "Data geometry3 data: " << v2.data << std::endl;
     vec4 v0_position = v0.gl_Position/(v0.gl_Position[3]);
     vec4 v1_position = v1.gl_Position/(v1.gl_Position[3]);
     vec4 v2_position = v2.gl_Position/(v2.gl_Position[3]);
+
     int x[3];
     int y[3];
     for(int i = 0 ; i < 3 ;i++){
@@ -143,24 +149,41 @@ void rasterize_triangle(driver_state& state, const data_geometry& v0,
 		float _gamma = gamma_area/bot_area;
 			
 		if((_gamma >= 0 && _gamma <= 1 ) && (_beta >= 0 && _beta <= 1) && (_alpha >= 0 && _alpha <= 1)){
-			//std::cout << "Did i color it in?" << std::endl;
-			/*
-			data_fragment *xyz = new data_fragment;
-			xyz->data = new float[MAX_FLOATS_PER_VERTEX];
-		        xyz->data[0] = (float)pixel_x;
-			xyz->data[1] = (float)pixel_y;
-			data_output *xyz2 = new data_output; 
-			state.fragment_shader(*xyz,*xyz2,xyz->data);
-			*/
-			//std::cout << xyz2->output_color << std::endl;		
-			//pixel *random_pixel = state.image_color[pixel_y*state.image_width + pixel_x];
-					
-			state.image_color[pixel_y*state.image_width + pixel_x] = make_pixel(255,255,255);  
+			data_fragment *temp_fragment = new data_fragment;
+			data_output *temp_output = new data_output;
+			temp_fragment->data = new float[MAX_FLOATS_PER_VERTEX];
+			//temp_fragment->data[0] = pixel_x;
+			//temp_fragment->data[1] = pixel_y;
+			for(int i = 0; i < state.floats_per_vertex ;i++){
+				switch(state.interp_rules[i]){
+					case interp_type::flat:
+						temp_fragment->data[i] = v0.data[i];
+						break;
+					case interp_type::noperspective:
+						temp_fragment->data[i] = _alpha * v0.data[i] + _beta * v1.data[i] + _gamma * v2.data[i];
+						break;
+						//std::cout << "no perspective rule type" << std::endl;
+						break;
+					case interp_type::smooth:
+						//std::cout << "Smooth rule type" << std::endl;
+						break;
+					default:
+						//std::cout << "Nothing happened" << std::endl;
+						break;
+				}
+		
+			}
+			state.fragment_shader(*temp_fragment, *temp_output, state.uniform_data);
+			temp_output->output_color = temp_output->output_color *255;
+			state.image_color[pixel_y * state.image_width + pixel_x] = make_pixel(temp_output->output_color[0], temp_output->output_color[1], temp_output->output_color[2]);
+		
+			  
 		}
 			
 			
 	}
     }
+    
     
     //std::cout<<"TODO: implement rasterization"<<std::endl;
 }

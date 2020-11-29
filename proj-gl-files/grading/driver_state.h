@@ -29,8 +29,8 @@ struct driver_state
     // since the driver will never need to know its size; you will just need.
     // to supply the pointer when necessary.
     float * uniform_data = 0;
-    data_geometry *geometry_array = 0;
-    data_vertex *vertex_array = 0; 
+    data_geometry **geometry_array = 0;
+    data_vertex **vertex_array = 0; 
     // Vertex data (such as color) at the vertices of triangles must be
     // interpolated to each pixel (fragment) within the triangle before calling
     // the fragment shader.  Since there are floats_per_vertex floats stored per
